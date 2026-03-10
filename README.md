@@ -45,6 +45,7 @@
 ## 相关站点
 
 * [官网](http://www.norco.com.cn/product_detail_359.html)
+* [官方WIKI](http://norcord.com:8070/d/34131f775091442d9fdc/)
 * [垃圾佬论坛固件下载](https://files.kos.org.cn/rockchip/EMB3531/)
 * [ophub for EMB3531](https://github.com/ophub/amlogic-s9xxx-armbian/issues/1549)
 * [openhub fnos for EMB3531](https://github.com/ophub/fnnas/releases)
@@ -102,8 +103,15 @@ EMB-3531 串口节点如下:
  流控：无
    ```
 
+![](./images/1860973295400.png)
+
+
 
 ## 进入maskrom方式
+
+![](./images/1711580561300.png)
+
+![](./images/1915524356200.png)
 
 
 
