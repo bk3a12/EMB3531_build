@@ -68,7 +68,7 @@ md5sum ${WORKDIR}/release/uboot.img
 #                        build kernel                                      #
 #==========================================================================#
 cd ${WORKDIR}
-git clone -b develop-6.6 https://github.com/rockchip-linux/kernel rockchip-linux_kernel.git
+git clone --depth 1 -b develop-6.6 https://github.com/rockchip-linux/kernel rockchip-linux_kernel.git
 cd rockchip-linux_kernel.git
 ls -alh
 
