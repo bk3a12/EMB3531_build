@@ -11,4 +11,5 @@
 * [接口引脚定义](docs/接口引脚定义/接口引脚定义.md)
 * [GPIO计算方式](docs/GPIO计算方式/GPIO计算方式.md)
 * [相关图片](docs/相关图片/相关图片.md)
+* [uboot适配修改](docs/uboot适配修改/uboot适配修改.md)
 
