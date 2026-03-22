@@ -78,7 +78,7 @@ cd rockchip-linux_develop-6.6
 wget -c https://github.com/yifengyou/EMB3531/releases/download/uboot_v2017/uboot.img
 wget -c https://github.com/yifengyou/EMB3531/releases/download/uboot_v2017/trust.img
 ls -alh uboot.img trust.img
-mv uboot.img trust.img ${WORKDIR}/rockdev/uboot.img
+mv uboot.img trust.img ${WORKDIR}/rockdev/
 ls -alh ${WORKDIR}/rockdev/*.img
 md5sum ${WORKDIR}/rockdev/*.img
 
