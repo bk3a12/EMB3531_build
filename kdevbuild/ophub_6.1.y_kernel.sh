@@ -35,33 +35,7 @@ localedef -i zh_CN -f UTF-8 zh_CN.UTF-8 || true
 mkdir -p ${WORKDIR}/rockdev
 mkdir -p ${WORKDIR}/release
 
-#==========================================================================#
-#                        build uboot                                       #
-#==========================================================================#
-cd ${WORKDIR}/
-git clone -b stable-5.10-rock5 https://github.com/radxa/u-boot.git u-boot.git
-cd u-boot.git
-ls -alh
 
-# apply patch
-if ls ${WORKDIR}/radxa-uboot/*.patch >/dev/null 2>&1; then
-  git config --global user.name yifengyou
-  git config --global user.email 842056007@qq.com
-  git am ${WORKDIR}/radxa-uboot/*.patch
-fi
-
-tool=$(which aarch64-linux-gnu-gcc)
-export CROSS_COMPILE_ARM64="${tool%gcc}"
-echo "using gcc: [${CROSS_COMPILE_ARM64}]"
-
-rm -rf spl/u-boot-spl*
-make CROSS_COMPILE=${CROSS_COMPILE_ARM64} rockchip-rk3399_defconfig
-make CROSS_COMPILE=${CROSS_COMPILE_ARM64} -j$(nproc)
-./make.sh rk3399
-mv uboot.img ${WORKDIR}/release/uboot.img
-
-ls -alh ${WORKDIR}/release/uboot.img
-md5sum ${WORKDIR}/release/uboot.img
 
 #==========================================================================#
 #                        build kernel                                      #
@@ -90,7 +64,7 @@ make ARCH=arm64 \
   KBUILD_BUILD_USER="builder" \
   KBUILD_BUILD_HOST="kdevbuilder" \
   LOCALVERSION=-kdev \
-  owl_rk3399_defconfig
+  rk3399-emb3531_defconfig
 
 make ARCH=arm64 \
   CROSS_COMPILE=aarch64-linux-gnu- \
