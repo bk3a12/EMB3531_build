@@ -1,8 +1,8 @@
 # 华北工控EMB3531
 
-![](./images/108453395358200.jpg)
+![](./images/108517102791700.jpg)
 
-![](./images/108462376137400.jpg)
+![](./images/108523110585000.jpg)
 
 ## 规格
 
@@ -29,19 +29,6 @@
 
 ---
 
-## 接口概览
-
-![](./images/108517102791700.jpg)
-
-![](./images/108523110585000.jpg)
-
-## 尺寸图
-
-![](./images/d7193618.png)
-
-![](./images/2260f2ee.png)
----
-
 ## 相关站点
 
 * [官网](http://www.norco.com.cn/product_detail_359.html)
@@ -49,7 +36,7 @@
 * [垃圾佬论坛固件下载](https://files.kos.org.cn/rockchip/EMB3531/)
 * [ophub for EMB3531](https://github.com/ophub/amlogic-s9xxx-armbian/issues/1549)
 * [openhub fnos for EMB3531](https://github.com/ophub/fnnas/releases)
-* [拆箱视频](https://www.bilibili.com/video/BV1Ve2fYmEqd)
+* [华北工控EMB3531 (RK3399)拆机测试](https://www.bilibili.com/video/BV1Ve2fYmEqd)
 * [ophub 适配申请](https://github.com/ophub/amlogic-s9xxx-armbian/issues/1549)
 * [emb3531 dts补丁](https://github.com/bk3a12/emb3531/tree/main)
 * [入手华北工控RK3399板子(盒子)型号EMB-3531值得一玩](https://www.right.com.cn/forum/thread-8251255-1-1.html)
@@ -145,6 +132,7 @@ EMB-3531 串口节点如下:
 ## uboot命令行引导系统
 
 ```shell
+
 ext4load mmc 0:3 0x02000000 vmlinuz-6.6-kdev
 
 ext4load mmc 0:3 0x01f00000 /dtb/rk3399-emb3531.dtb
@@ -158,4 +146,10 @@ booti 0x02000000 - 0x01f00000
 
 ```
 
+
+## 尺寸图
+
+![](./images/d7193618.png)
+
+![](./images/2260f2ee.png)
 
