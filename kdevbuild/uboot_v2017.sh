@@ -33,16 +33,22 @@ git clone --depth 1 -b master https://github.com/yifengyou/emb3531-uboot.git emb
 cd emb3531-uboot.git
 ls -alh
 
-make ARCH=arm CROSS_COMPILE=aarch64-linux-gnu- emb3531-rk3399_defconfig all O=out -j$(nproc)
-rkthings/loaderimage --pack --uboot out/u-boot-dtb.bin out/uboot.img 0x200000
-ls -alh out/uboot.img
+# clean before build
+make mrproper
+
+# build uboot.img
+make ARCH=arm CROSS_COMPILE=aarch64-linux-gnu- emb3531-rk3399_defconfig all -j$(nproc)
+rkthings/loaderimage --pack --uboot u-boot-dtb.bin uboot.img 0x200000
+ls -alh uboot.img
+
+# build trust.img
 cd rkthings
 ./trust_merger trust.ini
-mv trust.img ../out/
+mv trust.img ../
 
 # put image to release
-mv ../out/uboot.img ${WORKDIR}/release/uboot.img
-mv ../out/trust.img ${WORKDIR}/release/trust.img
+mv ../uboot.img ${WORKDIR}/release/uboot.img
+mv ../trust.img ${WORKDIR}/release/trust.img
 
 ls -alh ${WORKDIR}/release/uboot.img
 md5sum ${WORKDIR}/release/uboot.img
