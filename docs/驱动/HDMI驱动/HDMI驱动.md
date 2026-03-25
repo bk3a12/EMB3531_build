@@ -82,13 +82,118 @@ U-Boot 2017.09-g0eeeaecc425-dirty (Mar 25 2026 - 01:07:17 +0000)
 
 ```
 
+重启会出现空指向异常，根据堆栈，推测在HDMI调用 dw_hdmi_rockchip_shutdown 死锁。重启看看hdmi
+
+* 触发场景：用户执行了 reboot 命令（调用栈显示 __do_sys_reboot -> kernel_restart -> device_shutdown）。
+* 崩溃位置：mutex_lock+0x44/0x78。这意味着内核试图获取一个互斥锁（mutex），但无法获得，导致系统挂起或触发看门狗/软死锁检测（虽然这里直接打印了 Call Trace，通常是任务处于不可中断状态或被调试器捕获）。
+
+关键函数：
+1. dw_hdmi_suspend: Synopsys DesignWare HDMI 控制器的 suspend 回调函数。
+2. dw_hdmi_rockchip_shutdown: Rockchip 平台特定的 HDMI 关闭回调函数。
+3. platform_shutdown -> device_shutdown: 系统重启时的标准设备关闭流程。
+
+这是一个经典的 Shutdown/Suspend 路径上的锁竞争或重复加锁 问题
+
+```text
+root@armbian:~# dmesg |grep -i hdmi
+[   13.638158] Kernel command line: root=PARTUUID=614e0000-0000-4b53-8000-1d28000054a9 rootwait rw console=ttyS2,115200 cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory net.ifnames=0 biosdevname=0 level=10 loglevel=10 selinux=0 crashkernel=384M-:128M systemd.mask=systemd-growfs@-.service rockchip.dmc_freq=528000 video=HDMI-A-1:1920x1080@60
+[   15.825427] /vop@ff900000: Fixed dependency cycle(s) with /hdmi@ff940000
+[   15.825850] /vop@ff8f0000: Fixed dependency cycle(s) with /hdmi@ff940000
+[   15.826126] /hdmi@ff940000: Fixed dependency cycle(s) with /vop@ff8f0000
+[   15.826403] /hdmi@ff940000: Fixed dependency cycle(s) with /vop@ff900000
+[   24.263014] dwhdmi-rockchip ff940000.hdmi: Detected HDMI TX controller v2.11a with HDCP (DWC HDMI 2.0 TX PHY)
+[   24.273866] dwhdmi-rockchip ff940000.hdmi: can't find route
+[   24.279778] rockchip-drm display-subsystem: failed to bind ff940000.hdmi (ops 0xffffffc081cbfbf8): -19
+[   35.504358] platform hdmi-sound: deferred probe pending
+
+root@armbian:~# cat /sys/kernel/debug/devices_deferred 
+hdmi-sound	asoc-simple-card: parse error
+mtd_vendor_storage	
 
 
-重启会出现空指向异常，根据堆栈，推测在HDMI调用 dw_hdmi_rockchip_shutdown 死锁
+```
 
+没有完全适配好，需要调整hdmi
 
+```c
+static void dw_hdmi_rockchip_shutdown(struct platform_device *pdev)
+{
+    struct rockchip_hdmi *hdmi = dev_get_drvdata(&pdev->dev);
 
+    if (!hdmi || !hdmi->drm_dev)
+        return;
 
+    if (hdmi->is_hdmi_qp) {
+        if (hdmi->hpd_irq)
+            disable_irq(hdmi->hpd_irq);
+        cancel_delayed_work(&hdmi->work);
+        flush_workqueue(hdmi->workqueue);
+        dw_hdmi_qp_suspend(hdmi->dev, hdmi->hdmi_qp);
+    } else {
+        if (hdmi->hpd_gpiod) {
+            disable_irq(hdmi->hpd_irq);
+            if (hdmi->hpd_wake_en)
+                disable_irq_wake(hdmi->hpd_irq);
+        }
+        dw_hdmi_suspend(hdmi->hdmi);
+    }
+    pm_runtime_put_sync(&pdev->dev);
+}
 
+```
+
+```c
+void dw_hdmi_qp_suspend(struct device *dev, struct dw_hdmi_qp *hdmi)
+{
+    if (!hdmi) {
+        dev_warn(dev, "Hdmi has not been initialized\n");
+        return;
+    }
+
+    mutex_lock(&hdmi->mutex);  // 关键点
+
+    /*
+     * When system shutdown, hdmi should be disabled.
+     * When system suspend, dw_hdmi_qp_bridge_disable will disable hdmi first.
+     * To prevent duplicate operation, we should determine whether hdmi
+     * has been disabled.
+     */
+    if (!hdmi->disabled)
+        hdmi->disabled = true;
+    mutex_unlock(&hdmi->mutex);
+
+    if (hdmi->avp_irq)
+        disable_irq(hdmi->avp_irq);
+
+    if (hdmi->main_irq)
+        disable_irq(hdmi->main_irq);
+
+    if (hdmi->earc_irq)
+        disable_irq(hdmi->earc_irq);
+
+    pinctrl_pm_select_sleep_state(dev);
+    if (!hdmi->next_bridge)
+        drm_connector_update_edid_property(&hdmi->connector, NULL);
+}
+EXPORT_SYMBOL_GPL(dw_hdmi_qp_suspend);
+```
+
+这是最可能导致您看到 Crash 的场景：
+
+1.  **背景**：系统正常运行时，HDMI 的热插拔检测工作队列 `hdmi->work` 周期性运行。该工作队列的执行函数（通常是 `rockchip_hdmi_work_func` 或类似名字）在执行时，**必须先获取 `hdmi->mutex`** (或者内部的 `dw_hdmi->mutex`) 来保护共享数据。
+2.  **触发重启**：用户执行 `reboot`。
+3.  **时序竞争**：
+    *   **T1**: `hdmi->work` 被调度运行，成功获取了 `mutex`。
+    *   **T2**: `dw_hdmi_rockchip_shutdown` 开始执行。
+    *   **T3**: 执行到 `disable_irq(hdmi->hpd_irq)`。注意：`disable_irq` 只会等待**中断上下文**结束，**不会等待 Workqueue** (`hdmi->work`) 结束。如果 `hdmi->work` 是由定时器或延迟工作触发的，它此时仍在运行并持有锁。
+    *   **T4**: `disable_irq` 返回（因为中断已禁用且无中断在处理）。
+    *   **T5**: 立即调用 `dw_hdmi_suspend(hdmi->hdmi)`。
+    *   **T6**: `dw_hdmi_suspend` 尝试 `mutex_lock(&hdmi->mutex)`。
+    *   **死锁发生**：
+        *   `dw_hdmi_suspend` (主线程) 等待 `mutex` 释放。
+        *   `hdmi->work` (后台线程) 持有 `mutex`，正在执行。
+        *   **关键点**：`hdmi->work` 在执行过程中，可能需要访问某些硬件资源（如 I2C 总线、PHY 寄存器）。然而，在 `shutdown` 流程中，其他子系统（如 I2C 控制器、时钟门控）可能已经开始关闭或进入不可用状态。
+        *   结果：`hdmi->work` 在持有锁的情况下，因为访问已关闭的硬件而**卡死**（例如在 I2C 读写处无限等待，或者触发异常但未崩溃只是挂起）。
+        *   主线程 `dw_hdmi_suspend` 永远拿不到锁，系统看门狗超时或打印 Call Trace 后挂死。
 
 
